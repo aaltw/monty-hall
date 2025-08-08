@@ -71,6 +71,11 @@ func TestCompleteGameFlow(t *testing.T) {
 		t.Errorf("Expected Switch strategy, got %v", model.Game.Result.Strategy)
 	}
 
+	// Test 4.5: Process the reveal delay to complete statistics recording
+	revealMsg := RevealDelayMsg{}
+	updatedModel, _ = model.Update(revealMsg)
+	model = updatedModel.(*Model)
+
 	// Test 5: Navigate to statistics
 	keyMsg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}}
 	updatedModel, _ = model.Update(keyMsg)

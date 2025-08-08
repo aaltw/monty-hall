@@ -2,8 +2,6 @@ package game
 
 import (
 	"fmt"
-	"math/rand"
-	"time"
 )
 
 type DoorState int
@@ -95,10 +93,8 @@ func (d *Door) String() string {
 func CreateDoorsWithRandomCar() []*Door {
 	doors := make([]*Door, NumDoors)
 
-	// Use a properly seeded random source for better randomness
-	source := rand.NewSource(time.Now().UnixNano())
-	rng := rand.New(source)
-	carPosition := rng.Intn(NumDoors)
+	// Use secure random number generation for car placement
+	carPosition := SecureIntn(NumDoors)
 
 	for i := range NumDoors {
 		content := Goat

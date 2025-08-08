@@ -3,7 +3,6 @@ package game
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 )
 
 type Host struct {
@@ -40,7 +39,7 @@ func (h *Host) ChooseDoorToOpen(doors []*Door, playerChoice int) (int, error) {
 		return validChoices[0], nil
 	}
 
-	randomIndex := rand.Intn(len(validChoices))
+	randomIndex := SecureIntn(len(validChoices))
 	return validChoices[randomIndex], nil
 }
 

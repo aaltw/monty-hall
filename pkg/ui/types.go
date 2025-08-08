@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/westhuis/monty-hall/pkg/config"
 	"github.com/westhuis/monty-hall/pkg/game"
 	"github.com/westhuis/monty-hall/pkg/stats"
 )
@@ -27,6 +28,9 @@ type Model struct {
 	// Terminal dimensions
 	Width  int
 	Height int
+
+	// Configuration
+	ConfigManager *config.Manager
 
 	// Game state
 	Game         *game.Game
@@ -152,6 +156,7 @@ const (
 	KeyH      = "h"
 	KeyR      = "r"
 	KeyS      = "s"
+	KeyE      = "e"
 	Key1      = "1"
 	Key2      = "2"
 	Key3      = "3"

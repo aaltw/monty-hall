@@ -2,11 +2,11 @@ package ui
 
 import (
 	"math"
-	"math/rand"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/westhuis/monty-hall/pkg/game"
 )
 
 // EasingFunction defines the signature for easing functions
@@ -434,13 +434,12 @@ func (ps *ParticleSystem) AddWinningParticles(centerX, centerY int) {
 		particle := Particle{
 			X:       float64(centerX),
 			Y:       float64(centerY),
-			VX:      (rand.Float64() - 0.5) * 4,
-			VY:      (rand.Float64() - 0.5) * 4,
+			VX:      (game.SecureFloat64() - 0.5) * 4,
+			VY:      (game.SecureFloat64() - 0.5) * 4,
 			Life:    1.0,
 			MaxLife: 1.0,
-			Char:    sparkles[rand.Intn(len(sparkles))],
-			Color:   colors[rand.Intn(len(colors))],
-		}
+			Char:    sparkles[game.SecureIntn(len(sparkles))],
+			Color:   colors[game.SecureIntn(len(colors))]}
 		ps.particles = append(ps.particles, particle)
 	}
 }
