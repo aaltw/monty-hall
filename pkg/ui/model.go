@@ -2,11 +2,11 @@ package ui
 
 import (
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/westhuis/monty-hall/pkg/config"
 	"github.com/westhuis/monty-hall/pkg/game"
 	"github.com/westhuis/monty-hall/pkg/stats"
 )
@@ -19,6 +19,7 @@ func NewModel() *Model {
 		CurrentView:           MainMenuView,
 		Width:                 80,
 		Height:                24,
+		ConfigManager:         nil, // Will be nil for backward compatibility
 		Game:                  nil,
 		StatsManager:          statsManager,
 		MenuCursor:            0,
@@ -33,6 +34,46 @@ func NewModel() *Model {
 		AnimationManager:      NewAnimationManager(),
 		DoorAnimations:        make(map[int]*DoorOpenAnimation),
 		ShowAnimations:        true,
+		IsRevealing:           false,
+		ShowResetConfirmation: false,
+		CurrentInputIndex:     0,
+	}
+}
+
+// NewModelWithConfig creates a new TUI model with configuration support
+func NewModelWithConfig(configManager *config.Manager) *Model {
+	statsManager := stats.NewStatsManager()
+	cfg := configManager.Get()
+
+	// Apply configuration settings
+	width := 80
+	height := 24
+	if cfg.UI.TerminalWidth > 0 {
+		width = cfg.UI.TerminalWidth
+	}
+	if cfg.UI.TerminalHeight > 0 {
+		height = cfg.UI.TerminalHeight
+	}
+
+	return &Model{
+		CurrentView:           MainMenuView,
+		Width:                 width,
+		Height:                height,
+		ConfigManager:         configManager,
+		Game:                  nil,
+		StatsManager:          statsManager,
+		MenuCursor:            0,
+		DoorCursor:            0,
+		ShowHelp:              false,
+		ErrorMessage:          "",
+		SuccessMessage:        "",
+		GamePhase:             game.Setup,
+		ShowResult:            false,
+		StatsPage:             0,
+		MaxStatsPages:         1,
+		AnimationManager:      NewAnimationManager(),
+		DoorAnimations:        make(map[int]*DoorOpenAnimation),
+		ShowAnimations:        cfg.UI.ShowAnimations && !cfg.UI.ReducedMotion,
 		IsRevealing:           false,
 		ShowResetConfirmation: false,
 		CurrentInputIndex:     0,
@@ -109,6 +150,11 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Clear messages on any key press
 	m.ErrorMessage = ""
 	m.SuccessMessage = ""
+
+	// Handle reset confirmation input first (highest priority)
+	if m.ShowResetConfirmation {
+		return m.handleResetConfirmationKeys(msg)
+	}
 
 	// Global key bindings
 	switch msg.String() {
@@ -319,10 +365,6 @@ func (m *Model) switchChoice() (tea.Model, tea.Cmd) {
 
 // handleStatsKeys processes statistics view input
 func (m *Model) handleStatsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Handle reset confirmation input
-	if m.ShowResetConfirmation {
-		return m.handleResetConfirmationKeys(msg)
-	}
 
 	switch msg.String() {
 	case KeyLeft, "h":
@@ -346,6 +388,16 @@ func (m *Model) handleStatsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case KeyR:
 		// Reset statistics with confirmation
 		return m.confirmResetStats()
+
+	case KeyE:
+		// Export statistics
+		return m.exportStats()
+
+	case KeyQ:
+		// Return to main menu (same as ESC)
+		m.CurrentView = MainMenuView
+		m.MenuCursor = 0
+		return m, nil
 	}
 
 	return m, nil
@@ -355,7 +407,7 @@ func (m *Model) handleStatsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) confirmResetStats() (tea.Model, tea.Cmd) {
 	// Generate 4 random numbers for confirmation
 	for i := 0; i < 4; i++ {
-		m.ResetConfirmationNumbers[i] = rand.Intn(9) + 1 // Numbers 1-9
+		m.ResetConfirmationNumbers[i] = game.SecureIntn(9) + 1 // Numbers 1-9
 	}
 
 	// Reset user input
@@ -417,7 +469,11 @@ func (m *Model) validateAndResetStats() (tea.Model, tea.Cmd) {
 	for i := 0; i < 4; i++ {
 		if m.UserInputNumbers[i] != m.ResetConfirmationNumbers[i] {
 			// Numbers don't match - show error and reset input
-			m.ErrorMessage = "Numbers don't match! Please try again."
+			expectedNums := fmt.Sprintf("%d %d %d %d",
+				m.ResetConfirmationNumbers[0], m.ResetConfirmationNumbers[1],
+				m.ResetConfirmationNumbers[2], m.ResetConfirmationNumbers[3])
+			enhancedErr := CreateInvalidInputError("confirmation numbers", expectedNums)
+			m.ErrorMessage = FormatErrorForDisplay(enhancedErr)
 			m.CurrentInputIndex = 0
 			m.UserInputNumbers = [4]int{0, 0, 0, 0}
 			return m, nil
@@ -427,7 +483,8 @@ func (m *Model) validateAndResetStats() (tea.Model, tea.Cmd) {
 	// Numbers match - reset statistics
 	err := m.StatsManager.Reset()
 	if err != nil {
-		m.ErrorMessage = fmt.Sprintf("Failed to reset statistics: %v", err)
+		enhancedErr := WrapError(err, "reset statistics")
+		m.ErrorMessage = FormatErrorForDisplay(enhancedErr)
 	} else {
 		m.SuccessMessage = "Statistics reset successfully!"
 	}
@@ -436,6 +493,22 @@ func (m *Model) validateAndResetStats() (tea.Model, tea.Cmd) {
 	m.ShowResetConfirmation = false
 	m.CurrentInputIndex = 0
 	m.UserInputNumbers = [4]int{0, 0, 0, 0}
+
+	return m, nil
+}
+
+// exportStats handles statistics export
+func (m *Model) exportStats() (tea.Model, tea.Cmd) {
+	// Use default export options (JSON format)
+	options := stats.DefaultExportOptions()
+
+	err := m.StatsManager.ExportStats(options)
+	if err != nil {
+		enhancedErr := WrapError(err, "export statistics")
+		m.ErrorMessage = FormatErrorForDisplay(enhancedErr)
+	} else {
+		m.SuccessMessage = fmt.Sprintf("Statistics exported to: %s", options.Filename)
+	}
 
 	return m, nil
 }
@@ -854,9 +927,9 @@ func (m *Model) renderStats() string {
 
 	// Footer
 	footer := RenderFooter([]KeyBinding{
+		{"e", "Export stats"},
 		{"r", "Reset stats"},
-		{"ESC", "Return"},
-		{"q", "Return"},
+		{"ESC/q", "Return"},
 	})
 	content = append(content, footer)
 
@@ -886,10 +959,19 @@ func (m *Model) isDoorSelectable(doorIndex int) bool {
 		return false
 	}
 
+	// No doors are selectable during reveal countdown
+	if m.IsRevealing {
+		return false
+	}
+
 	switch m.Game.Phase {
 	case game.InitialChoice:
 		// All doors are selectable during initial choice
 		return doorIndex >= 0 && doorIndex < game.NumDoors
+
+	case game.HostReveal:
+		// No doors are selectable during host reveal phase (countdown)
+		return false
 
 	case game.FinalChoice:
 		// Only original choice and the other unopened door are selectable

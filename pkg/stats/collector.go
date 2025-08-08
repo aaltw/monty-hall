@@ -68,7 +68,11 @@ func (c *Collector) createGameRecord(result *game.GameResult) GameRecord {
 
 func (c *Collector) generateGameID() string {
 	bytes := make([]byte, 8)
-	rand.Read(bytes)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		// Fallback to timestamp-based ID if crypto/rand fails
+		return fmt.Sprintf("%x", time.Now().UnixNano())
+	}
 	return fmt.Sprintf("%x", bytes)
 }
 
